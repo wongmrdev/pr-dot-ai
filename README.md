@@ -1,6 +1,6 @@
 # Pull Request Description Generator
 
-This is a command-line tool that uses OpenAI's GPT-3 model to generate pull request descriptions based on the `git diff` of a specified branch.
+This is a command-line tool that uses OpenAI's models to generate pull request descriptions based on the `git diff` of a specified branch.
 
 ## Prerequisites
 - Python 3.7 or above
