@@ -44,7 +44,7 @@ def main():
     )
 
     diff_text = diff_output.stdout + initial_prompt
-    diff_chunks = split_prompt(diff_text, 24000)
+    diff_chunks = split_prompt(diff_text, 12000)
 
     chunks = diff_chunks
     pr_description = ""
