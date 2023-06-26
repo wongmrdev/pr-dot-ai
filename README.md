@@ -11,15 +11,15 @@ This is a command-line tool that uses OpenAI's GPT-3 model to generate pull requ
 1. Clone this repository.
 ```bash
 git clone https://github.com/wongmrdev/prdotai.git
-cd pr-description-generator
+cd prdotai
 ```
 2. Install dependencies
 ```bash
-   pip install openai python-dotenv
+   pip install openai
 ```
 
 3. Set openai API key
-
+It's recommneded to set this to your terminal .bashrc file or equivalent. 
 ```bash
 export OPENAI_API_KEY=your_openai_key
 ```

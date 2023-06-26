@@ -36,8 +36,10 @@ def main():
         " Are you looking for feedback in a specific area?\n\n"
     )
 
+
     diff_text = diff_output.stdout + initial_prompt
     chunks = split_prompt(diff_text, 24000)
+
     pr_description = ""
 
     for i, chunk in enumerate(chunks):
