@@ -36,7 +36,7 @@ def main():
     )
 
     diff_text = initial_prompt + diff_output.stdout
-    chunks = split_prompt(diff_text, 32000)
+    chunks = split_prompt(diff_text, 12000)
     pr_description = ""
 
     for i, chunk in enumerate(chunks):
