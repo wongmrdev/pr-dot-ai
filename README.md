@@ -10,7 +10,7 @@ This is a command-line tool that uses OpenAI's models to generate pull request d
 ## Setup
 1. Clone this repository.
 ```bash
-git clone https://github.com/wongmrdev/prdotai.git
+git clone https://github.com/wongmrdev/pr-dot-ai.git
 cd prdotai
 ```
 2. Install dependencies
