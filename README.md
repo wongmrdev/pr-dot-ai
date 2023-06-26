@@ -15,7 +15,15 @@ cd prdotai
 ```
 2. Install dependencies
 ```bash
-   pip install openai
+   pip install openai pick
+```
+
+
+### or
+
+```bash
+   pip install -r requirements.txt
+
 ```
 
 3. Set openai API key
