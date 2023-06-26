@@ -41,7 +41,6 @@ def main():
 
     for i, chunk in enumerate(chunks):
         print(f"Sending chunk {i+1} to OpenAI API...")
-        print(chunk)
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo-0613",
             messages=[{
