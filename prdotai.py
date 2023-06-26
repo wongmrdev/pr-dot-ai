@@ -4,6 +4,7 @@ import os
 import sys
 import subprocess
 import openai
+from pick import pick
 
 
 def main():
@@ -23,36 +24,43 @@ def main():
         print("Error in git diff command")
         sys.exit(1)
 
+    # Get the list of available models
+    model_list = openai.Model.list()["data"]
+    model_names = [model["id"] for model in model_list]
+    model_name, index = pick(model_names, "Choose a model:")
+
+    # Diff chunks should be sent first before the initial prompt
+    diff_text = diff_output.stdout
+    diff_chunks = split_prompt(diff_text, 12000)
+
     # Initial prompt with the headers for the PR
     initial_prompt = (
-        "We would like to create a Pull Request Description based on the git diff."
-        " We prefer concise descriptions, so please try to keep it short."
-        " Highlight the major changes and the improvements made."
-        " If there are any changes to package.json dependencies, please mention them "
-        " only if there are new dependencies or if any dependency version was updated"
-        " and remind the reader to run yarn install after pulling changes."
-        " Reply with Markdown format."
+        "We would like to create a Pull Request Description based on the git diff.\n"
+        " Reply with Markdown format.\n"
         " Include these 4 headers in the PR output using ## Markdown styling: "
         " Description,"
         " How can reviewers verify the behavior?,"
         " Screenshots or links that might help speedup the review,"
         " Are you looking for feedback in a specific area?\n\n"
+        " We prefer concise descriptions, so please try to keep it short.\n"
+        " Highlight the major functionality added or removed.\n"
+        " If there are any changes to package.json dependencies, please"
+        " remind the reader to run yarn install after pulling changes."
     )
 
-    diff_text = initial_prompt + diff_output.stdout
-    chunks = split_prompt(diff_text, 24000)
-
+    chunks = diff_chunks + split_prompt(initial_prompt, 12000)
     pr_description = ""
 
     for i, chunk in enumerate(chunks):
         print(f"Sending chunk {i+1} to OpenAI API...")
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model=model_name,
             messages=[{"role": "user", "content": chunk["content"]}],
+            temperature=0.2,
         )
 
         response_text = response["choices"][0]["message"]["content"]
-        print(f"Response from OpenAI API for chunk {i+1}:\n\n")
+        print(f"Response from OpenAI API for chunk {i+1}:")
         print(response_text)
         pr_description += response_text
 
