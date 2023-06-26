@@ -11,7 +11,7 @@ This is a command-line tool that uses OpenAI's GPT-3 model to generate pull requ
 1. Clone this repository.
 ```bash
 git clone https://github.com/wongmrdev/prdotai.git
-cd pr-description-generator
+cd prdotai
 ```
 2. Install dependencies
 ```bash
