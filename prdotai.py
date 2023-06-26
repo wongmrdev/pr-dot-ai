@@ -29,10 +29,6 @@ def main():
     model_names = [model["id"] for model in model_list]
     model_name, index = pick(model_names, "Choose a model:")
 
-    # Diff chunks should be sent first before the initial prompt
-    diff_text = diff_output.stdout
-    diff_chunks = split_prompt(diff_text, 12000)
-
     # Initial prompt with the headers for the PR
     initial_prompt = (
         "We would like to create a Pull Request Description based on the git diff.\n"
@@ -42,13 +38,15 @@ def main():
         " How can reviewers verify the behavior?,"
         " Screenshots or links that might help speedup the review,"
         " Are you looking for feedback in a specific area?\n\n"
-        " We prefer concise descriptions, so please try to keep it short.\n"
-        " Highlight the major functionality added or removed.\n"
+        " Highlight, in the description, the major functionality added or removed.\n"
         " If there are any changes to package.json dependencies, please"
         " remind the reader to run yarn install after pulling changes."
     )
 
-    chunks = diff_chunks + split_prompt(initial_prompt, 12000)
+    diff_text = diff_output.stdout + initial_prompt
+    diff_chunks = split_prompt(diff_text, 12000)
+
+    chunks = diff_chunks
     pr_description = ""
 
     for i, chunk in enumerate(chunks):
@@ -56,7 +54,6 @@ def main():
         response = openai.ChatCompletion.create(
             model=model_name,
             messages=[{"role": "user", "content": chunk["content"]}],
-            temperature=0.2,
         )
 
         response_text = response["choices"][0]["message"]["content"]
