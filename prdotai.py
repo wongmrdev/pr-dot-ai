@@ -28,6 +28,9 @@ def main():
         "We would like to create a Pull Request Description based on the git diff."
         " We prefer concise descriptions, so please try to keep it short."
         " Highlight the major changes and the improvements made."
+        " If there are any changes to package.json dependencies, please mention them "
+        " only if there are new dependencies or if any dependency version was updated"
+        " and remind the reader to run yarn install after pulling changes."
         " Reply with Markdown format."
         " Include these 4 headers in the PR output using ## Markdown styling: "
         " Description,"
@@ -36,8 +39,7 @@ def main():
         " Are you looking for feedback in a specific area?\n\n"
     )
 
-
-    diff_text = diff_output.stdout + initial_prompt
+    diff_text = initial_prompt + diff_output.stdout
     chunks = split_prompt(diff_text, 24000)
 
     pr_description = ""
@@ -50,7 +52,7 @@ def main():
         )
 
         response_text = response["choices"][0]["message"]["content"]
-        print(f"Response from OpenAI API for chunk {i+1}:")
+        print(f"Response from OpenAI API for chunk {i+1}:\n\n")
         print(response_text)
         pr_description += response_text
 
