@@ -15,11 +15,11 @@ cd prdotai
 ```
 2. Install dependencies
 ```bash
-   pip install openai python-dotenv
+   pip install openai
 ```
 
 3. Set openai API key
-
+It's recommneded to set this to your terminal .bashrc file or equivalent. 
 ```bash
 export OPENAI_API_KEY=your_openai_key
 ```
