@@ -4,7 +4,16 @@ import os
 import sys
 import subprocess
 import openai
+import tiktoken
 from pick import pick
+
+
+# Add a system prompt to get more context
+# Chunk based on Tokens not Characters
+# Send the "prompt" as the last message
+# Increase the output Tokens
+# Choose the max_tokens based on the model
+# Use the temperature parameter to control the randomness of the output
 
 
 def main():
@@ -31,29 +40,40 @@ def main():
 
     # Initial prompt with the headers for the PR
     initial_prompt = (
-        "We would like to create a Pull Request Description based on the git diff.\n"
-        " Reply with Markdown format.\n"
+        "We would like to create a Pull Request Description based on the git diff I just sent you.\n"
+        " Please reply with Markdown format.\n"
         " Include these 4 headers in the PR output using ## Markdown styling: "
         " Description,"
         " How can reviewers verify the behavior?,"
         " Screenshots or links that might help speedup the review,"
         " Are you looking for feedback in a specific area?\n\n"
         " Highlight, in the description, the major functionality added or removed.\n"
-        " If there are any changes to package.json dependencies, please"
-        " remind the reader to run yarn install after pulling changes."
+        " Only remind the reviewer to run yarn install if there are any changes to the file package.json"
+        " Don't send a response now because I'm going to send you the diff in chunks."
     )
 
-    diff_text = diff_output.stdout + initial_prompt
-    diff_chunks = split_prompt(diff_text, 12000)
+    diff_chunks = split_prompt(diff_output.stdout, split_length=24000)
 
-    chunks = diff_chunks
     pr_description = ""
+    system_prompt = "You are helpful assistant. You are helping me write a Pull Request Description."
+    response = openai.ChatCompletion.create(
+        model=model_name,
+        messages=[
+            {"role": "user", "content": initial_prompt},
+            {"role": "system", "content": system_prompt},
+        ],
+        # temperature=0.5,
+        # max_tokens=4000,
+    )
+    print(response["choices"][0]["message"]["content"])
 
-    for i, chunk in enumerate(chunks):
+    for i, chunk in enumerate(diff_chunks):
         print(f"Sending chunk {i+1} to OpenAI API...")
         response = openai.ChatCompletion.create(
             model=model_name,
             messages=[{"role": "user", "content": chunk["content"]}],
+            # temperature=0.5,
+            # max_tokens=20,
         )
 
         response_text = response["choices"][0]["message"]["content"]
@@ -61,8 +81,8 @@ def main():
         print(response_text)
         pr_description += response_text
 
-    print("\n\nFull PR description:\n\n")
-    print(pr_description)
+    # print("\n\nFull PR description:\n\n")
+    # print(pr_description)
 
 
 def split_prompt(text, split_length):
@@ -79,7 +99,7 @@ def split_prompt(text, split_length):
         if i == num_parts - 1:
             part_msg = f"[START PART {i + 1}/{num_parts}]\n"
             part_msg += text[start:end] + f"\n[END PART {i + 1}/{num_parts}]"
-            part_msg += "\nALL PARTS SENT. Now you can continue processing the request."
+            part_msg += "\nALL PARTS SENT. Now you can give the Pull Request in the format requested"
         else:
             part_msg = (
                 f"Do not answer yet. This is just another part of the text I want to send you."
@@ -99,6 +119,13 @@ def split_prompt(text, split_length):
         )
 
     return file_data
+
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 
 if __name__ == "__main__":
