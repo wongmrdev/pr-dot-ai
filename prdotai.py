@@ -26,8 +26,11 @@ def main():
     branch1 = sys.argv[1]
 
     # Assuming that the openai API key is stored in the OPENAI_API_KEY environment variable
+    # Split Length is set to 12000 which is ~75% of the max token limit of the gpt-3.5-turbo model
+    # This leaves enough tokens for the user and system prompts and the response from the API
     openai.api_key = os.environ["OPENAI_API_KEY"]
     gpt_model = "gpt-3.5-turbo"
+    split_length = 12000
 
     diff_command = ["git", "diff", branch1]
     diff_output = subprocess.run(diff_command, capture_output=True, text=True)
@@ -37,7 +40,7 @@ def main():
         sys.exit(1)
     
     diff_text = diff_output.stdout
-    diff_splits = split_diff(diff_text, 12000)
+    diff_splits = split_diff(diff_text, split_length)
 
     # User and System prompts to fetch the summary of code changes for each split
     user_prompt_code_summary = (
@@ -89,7 +92,7 @@ def main():
     pr_summary_response = openai.ChatCompletion.create(
         model=gpt_model,
         messages=[{"role": "user", "content": user_prompt_pr_description+diff_summary},
-                    {"role": "system", "content": system_prompt_pr_description}],
+                    {"role": "system", "content": system_prompt_pr_description}],          
     )
     
     pr_summary = pr_summary_response["choices"][0]["message"]["content"]
