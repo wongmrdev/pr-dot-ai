@@ -19,19 +19,26 @@ import openai
 # the diff into chunks and generate summaries for each chunk. We then send
 # all the summaries to the API to generate the Pull Request Description.
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} branch1 ")
         sys.exit(1)
 
     branch1 = sys.argv[1]
 
     # Assuming that the openai API key is stored in the OPENAI_API_KEY environment variable
-    # Split Length is set to 12000 which is ~75% of the max token limit of the gpt-3.5-turbo model
+    # Split Length is set to 12000, which is ~75% of the max token limit of the gpt-3.5-turbo model
     # This leaves enough tokens for the user and system prompts and the response from the API
     openai.api_key = os.environ["OPENAI_API_KEY"]
-    gpt_model = "gpt-3.5-turbo"
     split_length = 12000
 
+    # The gpt-3.5-turbo model is used by default
+    # The user can pass in a different model as the second argument
+    if len(sys.argv) == 3:
+        gpt_model = sys.argv[2]
+    else:
+        gpt_model = "gpt-3.5-turbo"
+
+    # Get the git diff for the branch
     diff_command = ["git", "diff", branch1]
     diff_output = subprocess.run(diff_command, capture_output=True, text=True)
 
