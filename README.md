@@ -15,7 +15,7 @@ cd prdotai
 ```
 2. Install dependencies
 ```bash
-   pip install openai pick
+   pip install openai
 ```
 
 
@@ -46,9 +46,11 @@ From any git tracked directory, from any branch, generate PR comparing current b
 prdotai <branch1>
 ```
 
-## Example usage (on feature branch)
+By default, the gpt-3.5-turbo model will be used to generate the PR description. The model can also be specified as an optional second argument.
+
+## Example usage (on feature branch, with specified model)
 ```bash
-prdotai main
+prdotai main gpt-4
 ```
 
 ## Example output
