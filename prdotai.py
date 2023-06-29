@@ -4,9 +4,20 @@ import os
 import sys
 import subprocess
 import openai
-from pick import pick
 
+# This script takes in a branch name and generates a Pull Request Description
+# based on the code changes in the branch. It uses the OpenAI ChatCompletion API
+# to generate the Pull Request Description.
 
+# The git diff is split into chunks and each chunk is sent to the OpenAI API
+# to generate a summary of the code changes. The summaries of all the chunks
+# are then sent to the OpenAI API to generate the Pull Request Description.
+
+# We use this two step approach to get around the token limit of the models.
+# Subsequent calls to the API are memoryless and require use to provide the
+# user and assistant prompts again to get the desired output. Hence, we split
+# the diff into chunks and generate summaries for each chunk. We then send
+# all the summaries to the API to generate the Pull Request Description.
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} branch1 ")
@@ -15,7 +26,8 @@ def main():
     branch1 = sys.argv[1]
 
     # Assuming that the openai API key is stored in the OPENAI_API_KEY environment variable
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    openai.api_key = os.environ["OPENAI_API_KEY"]
+    gpt_model = "gpt-3.5-turbo"
 
     diff_command = ["git", "diff", branch1]
     diff_output = subprocess.run(diff_command, capture_output=True, text=True)
@@ -23,83 +35,118 @@ def main():
     if diff_output.returncode != 0:
         print("Error in git diff command")
         sys.exit(1)
+    
+    diff_text = diff_output.stdout
+    diff_splits = split_diff(diff_text, 12000)
 
-    # Get the list of available models
-    model_list = openai.Model.list()["data"]
-    model_names = [model["id"] for model in model_list]
-    model_name, index = pick(model_names, "Choose a model:")
-
-    # Initial prompt with the headers for the PR
-    initial_prompt = (
-        "We would like to create a Pull Request Description based on the git diff.\n"
-        " Reply with Markdown format.\n"
-        " Include these 4 headers in the PR output using ## Markdown styling: "
-        " Description,"
-        " How can reviewers verify the behavior?,"
-        " Screenshots or links that might help speedup the review,"
-        " Are you looking for feedback in a specific area?\n\n"
-        " Highlight, in the description, the major functionality added or removed.\n"
-        " If there are any changes to package.json dependencies, please"
-        " remind the reader to run yarn install after pulling changes."
+    # User and System prompts to fetch the summary of code changes for each split
+    user_prompt_code_summary = (
+        " Summarize the code changes from the git diff below. \n"
+        " Make sure to include file and function names and focuse on the change in functionality \n"
+        " These summaries will later be used to generate a Pull Request Description.\n"
     )
 
-    diff_text = diff_output.stdout + initial_prompt
-    diff_chunks = split_prompt(diff_text, 12000)
+    system_prompt_code_summary = (
+        "You are a world class developer summarizing code changes.\n"
+    )
 
-    chunks = diff_chunks
-    pr_description = ""
+    # Call the ChatCompletion API for each split to get the summary of changes
+    diff_summary = ""
+    for i, diff_split in enumerate(diff_splits):
+        print(f"Sending chunk {i+1} to OpenAI:")
 
-    for i, chunk in enumerate(chunks):
-        print(f"Sending chunk {i+1} to OpenAI API...")
-        response = openai.ChatCompletion.create(
-            model=model_name,
-            messages=[{"role": "user", "content": chunk["content"]}],
+        split_summary_response = openai.ChatCompletion.create(
+            model=gpt_model,
+            messages=[{"role": "user", "content": user_prompt_code_summary+diff_split},
+                      {"role": "system", "content": system_prompt_code_summary}],
         )
-
-        response_text = response["choices"][0]["message"]["content"]
+        
+        split_summary = split_summary_response["choices"][0]["message"]["content"]
+        diff_summary += split_summary
         print(f"Response from OpenAI API for chunk {i+1}:")
-        print(response_text)
-        pr_description += response_text
+        print(split_summary)
 
-    print("\n\nFull PR description:\n\n")
-    print(pr_description)
+    # User and System prompts to fetch the Pull Request Description
+    user_prompt_pr_description = (
+        "We would like to create a Pull Request Description based on the summary of code changes below. \n"
+        " Reply with Markdown format.\n"
+        " Include these 4 headers in the PR output using ## Markdown styling: "
+        " 1. Description,"
+        " 2. How can reviewers verify the behavior?,"
+        " 3. Screenshots or links that might help speedup the review,"
+        " 4. Are you looking for feedback in a specific area?\n\n"
+        " Highlight, in the description, the major functionality added or removed.\n"
+        " If there are any changes to package.json file, please"
+        " remind the reviewer to run yarn install after pulling changes."
+    )
 
+    system_prompt_pr_description = (
+        "You are a world class developer writing a Pull Request Description. \n"
+    )
 
-def split_prompt(text, split_length):
+    print(f"Sending OpenAI API a request to generate PR Summary:")
+
+    pr_summary_response = openai.ChatCompletion.create(
+        model=gpt_model,
+        messages=[{"role": "user", "content": user_prompt_pr_description+diff_summary},
+                    {"role": "system", "content": system_prompt_pr_description}],
+    )
+    
+    pr_summary = pr_summary_response["choices"][0]["message"]["content"]
+    print(f"Response from OpenAI API for PR Summary:")
+    print(pr_summary)
+
+# Split the diff into chunks of length split_length.
+# Each split ends at the closest newline after the end of the split
+# and starts at the 10th closest newline before the start of the split.
+# This is done to ensure that the diff is split at a logical point and
+# has an overlap of 10 lines with the previous split to provide context.
+def split_diff(diff_text, split_length):
     if split_length <= 0:
         raise ValueError("Max length must be greater than 0.")
 
-    num_parts = -(-len(text) // split_length)
-    file_data = []
+    num_parts = -(-len(diff_text) // split_length)
+    diff_splits = []
 
     for i in range(num_parts):
-        start = i * split_length
-        end = min((i + 1) * split_length, len(text))
-
-        if i == num_parts - 1:
-            part_msg = f"[START PART {i + 1}/{num_parts}]\n"
-            part_msg += text[start:end] + f"\n[END PART {i + 1}/{num_parts}]"
-            part_msg += "\nALL PARTS SENT. Now you can continue processing the request."
+        # If this is not the first split, find the 10th closest newline before the start of the split
+        if i != 0:
+            start = find_nth_closest_newline_before(diff_text, end, 10) + 1
+            assert start != -1
         else:
-            part_msg = (
-                f"Do not answer yet. This is just another part of the text I want to send you."
-                ' Just receive and acknowledge as "Part {i + 1}/{num_parts} received"'
-                " and wait for the next part.\n[START PART {i + 1}/{num_parts}]\n"
-                + text[start:end]
-                + f"\n[END PART {i + 1}/{num_parts}]"
-                "\nRemember not answering yet. Just acknowledge you received this part"
-                ' with the message "Part {i + 1}/{num_parts} received" and wait for the next part.'
-            )
+            start = 0
+        
+        # If this is not the last split, find the closest newline after the end of the split
+        if i != num_parts - 1:
+            end = find_nth_closest_newline_after(diff_text, start + split_length, 1)
+            assert end != -1
+        else:
+            end = len(diff_text)
 
-        file_data.append(
-            {
-                "name": f"split_{str(i + 1).zfill(3)}_of_{str(num_parts).zfill(3)}.txt",
-                "content": part_msg,
-            }
-        )
+        diff_splits.append(diff_text[start:end])
+        return diff_splits
 
-    return file_data
+# Find the nth closest newline before the given index
+# Returns -1 if no nth newline is found before the given index
+def find_nth_closest_newline_before(string, index, n):
+    newline_count = 0
+    for i in range(index, -1, -1):
+        if string[i] == '\n':
+            newline_count += 1
+            if newline_count == n:
+                return i
+    return -1  # No nth newline found before the given index
 
+# Find the nth closest newline after the given index
+# Returns -1 if no nth newline is found after the given index
+def find_nth_closest_newline_after(string, index, n):
+    newline_count = 0
+    for i in range(index, len(string)):
+        if string[i] == '\n':
+            newline_count += 1
+            if newline_count == n:
+                return i
+    return -1  # No nth newline found after the given index
 
 if __name__ == "__main__":
     main()
