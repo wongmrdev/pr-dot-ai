@@ -26,10 +26,10 @@ def main():
     branch1 = sys.argv[1]
 
     # Assuming that the openai API key is stored in the OPENAI_API_KEY environment variable
-    # Split Length is set to 12000, which is ~75% of the max token limit of the gpt-3.5-turbo model
+    # Split Length is set to 800, which is ~50% of the max token limit of the gpt-3.5-turbo model
     # This leaves enough tokens for the user and system prompts and the response from the API
     openai.api_key = os.environ["OPENAI_API_KEY"]
-    split_length = 12000
+    split_length = 8000
 
     # The gpt-3.5-turbo model is used by default
     # The user can pass in a different model as the second argument
@@ -52,13 +52,17 @@ def main():
     # User and System prompts to fetch the summary of code changes for each split
     user_prompt_code_summary = (
         " Summarize the code changes from the git diff below. \n"
-        " Make sure to include file and function names and focuse on the change in functionality \n"
         " These summaries will later be used to generate a Pull Request Description.\n"
+        " Keep the summaries very short and concise, and focus only on change in functionality! \n"
+        " You can ignore changes to Python Package Versions \n"
     )
 
     system_prompt_code_summary = (
         "You are a world class developer summarizing code changes.\n"
     )
+
+    # print the number of splits
+    print(f"Number of splits: {len(diff_splits)}")
 
     # Call the ChatCompletion API for each split to get the summary of changes
     diff_summary = ""
@@ -97,7 +101,7 @@ def main():
     print(f"Sending OpenAI API a request to generate PR Summary:")
 
     pr_summary_response = openai.ChatCompletion.create(
-        model=gpt_model,
+        model='gpt-3.5-turbo-16k',
         messages=[{"role": "user", "content": user_prompt_pr_description+diff_summary},
                     {"role": "system", "content": system_prompt_pr_description}],          
     )
@@ -134,7 +138,8 @@ def split_diff(diff_text, split_length):
             end = len(diff_text)
 
         diff_splits.append(diff_text[start:end])
-        return diff_splits
+        
+    return diff_splits
 
 # Find the nth closest newline before the given index
 # Returns -1 if no nth newline is found before the given index
