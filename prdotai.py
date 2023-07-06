@@ -54,8 +54,7 @@ def main():
     user_prompt_code_summary = (
         " Summarize the code changes from the git diff below. \n"
         " These summaries will later be used to generate a Pull Request Description.\n"
-        " Keep the summaries very short and concise, focus only on high level functionality changes\n"
-        " Ignore changes to pacakge versions changes \n"
+        " Keep the summaries concise but meaningful to code reviewers. \n"
         " For each major change, provide a short explanation of what was done and why. "
         " Highlight any parts of the code that may be controversial or need careful review. "
     )
