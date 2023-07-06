@@ -6,6 +6,7 @@ import subprocess
 import openai
 import tiktoken
 
+
 # This script takes in a branch name and generates a Pull Request Description
 # based on the code changes in the branch. It uses the OpenAI ChatCompletion API
 # to generate the Pull Request Description.
@@ -58,6 +59,8 @@ def main():
         " These summaries will later be used to generate a Pull Request Description.\n"
         " Keep the summaries very short and concise, focus only on high level functionality changes\n"
         " Ignore changes to pacakge versions changes \n"
+        " For each major change, provide a short explanation of what was done and why. "
+        " Highlight any parts of the code that may be controversial or need careful review. "
     )
     user_prompt_code_summary_tokens = num_tokens_from_message(user_prompt_code_summary)
 
@@ -72,15 +75,10 @@ def main():
     user_prompt_pr_description = (
         "Create a concise, yet meaningful, Pull Request Description based on the following code changes. "
         "Your response should be formatted in Markdown and include the following headers, using ## Markdown styling: "
-        " 1. Summary of Changes,"
-        " 2. Reason for Changes,"
-        " 3. Areas of Potential Contention,"
-        " 4. Verification Steps,"
-        " 5. Screenshots or Helpful Links.\n\n"
-        "For each major change, provide a short explanation of what was done and why. "
-        "Highlight any parts of the code that may be controversial or need careful review. "
-        "Ignore changes to lock files and package versions. "
-        "Finally, indicate any specific areas where you're seeking feedback."
+        " 1. Description,"
+        " 2. Verification Steps,"
+        " 3. Screenshots or Helpful Links,"
+        " 4. Feedback.\n"
     )
     user_prompt_pr_description_tokens = num_tokens_from_message(
         user_prompt_pr_description
@@ -190,13 +188,16 @@ def split_diff(diff_text, split_token):
             break
         else:
             while True:
-                if split_token - num_tokens_from_message(diff_text[start:end]) <= 10:
+                token_differance = split_token - num_tokens_from_message(
+                    diff_text[start:end]
+                )
+                if token_differance <= 10:
                     break
                 if end >= last_diff_text_index:
                     end = last_diff_text_index
                     break
                 else:
-                    end += 10
+                    end += min(1000, token_differance)
             diff_splits.append(diff_text[start:end])
             print(f"diff_split_tokens: {num_tokens_from_message(diff_text[start:end])}")
             tracking_splits.append((start, end))
