@@ -29,17 +29,14 @@ def main():
     branch1 = sys.argv[1]
 
     # Assuming that the openai API key is stored in the OPENAI_API_KEY environment variable
-    # Split Length is set to 800, which is ~50% of the max token limit of the gpt-3.5-turbo model
-    # This leaves enough tokens for the user and system prompts and the response from the API
     openai.api_key = os.environ["OPENAI_API_KEY"]
 
-    # The gpt-3.5-turbo model is used by default
+    # The gpt-3.5-turbo-16K model is used by default
     # The user can pass in a different model as the second argument
     if len(sys.argv) == 3:
         gpt_model = sys.argv[2]
     else:
         gpt_model = "gpt-3.5-turbo-16k"
-        # gpt_model = "gpt-4-0613"
 
     # Get the git diff for the branch
     diff_command = ["git", "diff", branch1]
@@ -62,6 +59,7 @@ def main():
         " For each major change, provide a short explanation of what was done and why. "
         " Highlight any parts of the code that may be controversial or need careful review. "
     )
+    # Calculate the number of tokens used by the prompts to allocate the remaining tokens for the response context
     user_prompt_code_summary_tokens = num_tokens_from_message(user_prompt_code_summary)
 
     system_prompt_code_summary = (
@@ -158,13 +156,16 @@ def main():
 
 
 # Split the diff into chunks of length split_token.
-# Each split ends at the closest newline after the end of the split
-# and starts at the 10th closest newline before the start of the split.
-# This is done to ensure that the diff is split at a logical point and
-# has an overlap of 10 lines with the previous split to provide context.
+# Each split has a length within 10 tokens of the split_token.
+# Each split, that is not the starting split starts 1000 characters before the end of previous split.
+# This is done to ensure that the diff is split has an overlap with the previous split to provide context.
 def split_diff(diff_text, split_token):
     print(f"diff_text length: {len(diff_text)}")
-    if split_token <= 0 or len(diff_text) == 0:
+    if len(diff_text) == 0:
+        raise ValueError(
+            "diff_text cannot be empty. Please check your git diff, did you stage or commit your changes?"
+        )
+    if split_token <= 0:
         raise ValueError("Max length must be greater than 0.")
     diff_text_tokens = num_tokens_from_message(diff_text)
     print(f"diff_text_tokens: {diff_text_tokens}")
@@ -173,13 +174,14 @@ def split_diff(diff_text, split_token):
     start = 0
     end = 0
     last_diff_text_index = len(diff_text) - 1
-    starting_end_guess_distance = split_token
+    # Build a list of splits[start, end]
     while True:
         print(f"start: {start}")
         print(f"end: {end}")
-        # We reached the last split
+        # We passed the last split
         if start >= last_diff_text_index:
             break
+        # We reached the last split
         if end >= last_diff_text_index:
             end = last_diff_text_index
             diff_splits.append(diff_text[start:end])
@@ -187,17 +189,20 @@ def split_diff(diff_text, split_token):
             print(f"tracking_splits: {tracking_splits}")
             break
         else:
+            # Find the end of the next split
             while True:
-                token_differance = split_token - num_tokens_from_message(
+                token_difference = split_token - num_tokens_from_message(
                     diff_text[start:end]
                 )
-                if token_differance <= 10:
+                # Get to within 10 tokens of the split_token limit
+                if token_difference <= 10:
                     break
+                # If at or passed the end, set the end to the end of the diff
                 if end >= last_diff_text_index:
                     end = last_diff_text_index
                     break
                 else:
-                    end += min(1000, token_differance)
+                    end += min(1000, token_difference)
             diff_splits.append(diff_text[start:end])
             print(f"diff_split_tokens: {num_tokens_from_message(diff_text[start:end])}")
             tracking_splits.append((start, end))
@@ -210,30 +215,6 @@ def split_diff(diff_text, split_token):
                 # Set the start of the next split
                 start = end - 1000  # Give 1000 characters of overlap for context
     return diff_splits
-
-
-# Find the nth closest newline before the given index
-# Returns -1 if no nth newline is found before the given index
-def find_nth_closest_newline_before(string, index, n):
-    newline_count = 0
-    for i in range(index, -1, -1):
-        if string[i] == "\n":
-            newline_count += 1
-            if newline_count == n:
-                return i
-    return -1  # No nth newline found before the given index
-
-
-# Find the nth closest newline after the given index
-# Returns -1 if no nth newline is found after the given index
-def find_nth_closest_newline_after(string, index, n):
-    newline_count = 0
-    for i in range(index, len(string)):
-        if string[i] == "\n":
-            newline_count += 1
-            if newline_count == n:
-                return i
-    return -1  # No nth newline found after the given index
 
 
 def get_max_tokens(model_name):
