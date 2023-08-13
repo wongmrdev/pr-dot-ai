@@ -15,7 +15,7 @@ cd prdotai
 ```
 2. Install dependencies
 ```bash
-   pip install openai
+   pip install openai tiktoken
 ```
 
 
